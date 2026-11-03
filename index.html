@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<title>Сальдо ИИ-бухгалтер</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: ledger paper — ruled rows and a debit/credit margin line run behind a single-column product story; the pricing block is the one bold moment. */
+:root {
+  --bg: #F2F5F7;
+  --surface: #FFFFFF;
+  --ink: #0F1B2D;
+  --muted: #56637A;
+  --rule: #DCE3EA;
+  --accent: #1747D1;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E3EAFC;
+  --stamp: #C2410C;
+  --ok: #15803D;
+  --ok-soft: #DCF3E4;
+  --warn: #A16207;
+  --warn-soft: #FBF0D5;
+  --shadow: 0 1px 2px rgba(15,27,45,.06), 0 8px 24px rgba(15,27,45,.06);
+  --f-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --f-body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B1220; --surface: #121B2C; --ink: #E7ECF4; --muted: #95A3BA; --rule: #22304A;
+    --accent: #6E93FF; --accent-ink: #0B1220; --accent-soft: #1A2748; --stamp: #FB8A4F;
+    --ok: #4ADE80; --ok-soft: #12301F; --warn: #FACC15; --warn-soft: #33290C;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B1220; --surface: #121B2C; --ink: #E7ECF4; --muted: #95A3BA; --rule: #22304A;
+  --accent: #6E93FF; --accent-ink: #0B1220; --accent-soft: #1A2748; --stamp: #FB8A4F;
+  --ok: #4ADE80; --ok-soft: #12301F; --warn: #FACC15; --warn-soft: #33290C;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 var(--f-body);
+  -webkit-font-smoothing: antialiased;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap {
+  max-width: 1160px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+/* Header */
+header.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+}
+.top .wrap { display: flex; align-items: center; gap: 24px; padding-block: 14px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--f-display); font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+.logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--f-mono); font-size: 13px; font-weight: 600; }
+nav.links { display: flex; gap: 22px; margin-left: auto; }
+nav.links a { text-decoration: none; color: var(--muted); font-size: 15px; font-weight: 500; }
+nav.links a:hover { color: var(--ink); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid transparent; border-radius: 10px; padding: 11px 18px;
+  font: 600 15px/1.2 var(--f-body); cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.btn-ghost:hover { border-color: var(--muted); }
+.top .btn { padding: 9px 14px; font-size: 14px; }
+@media (max-width: 820px) { nav.links { display: none; } .top .btn { margin-left: auto; } }
+
+/* Hero */
+.hero {
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 31px, color-mix(in srgb, var(--rule) 70%, transparent) 31px 32px);
+  border-bottom: 1px solid var(--rule);
+}
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding-block: 72px 80px; }
+.hero-copy { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.hero h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.025em; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero .lead { font-size: 19px; color: var(--muted); max-width: 34em; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.hero-cta .btn { padding: 14px 22px; font-size: 16px; }
+.hero-facts { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; color: var(--muted); }
+.hero-facts span::before { content: "✓"; color: var(--ok); font-weight: 700; margin-right: 6px; }
+
+/* App mock */
+.app {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; box-shadow: var(--shadow);
+  overflow: hidden; min-width: 0;
+}
+.app-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--muted); }
+.dots { display: flex; gap: 6px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); display: block; }
+.app-bar b { color: var(--ink); font-weight: 600; }
+.app-bar .live { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.app-bar .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.app-body { padding: 16px; display: grid; gap: 14px; }
+.tax-card { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 16px; border-radius: 12px; background: var(--accent-soft); }
+.tax-card .eyebrow { grid-column: 1 / -1; color: var(--accent); }
+.tax-card .sum { font-family: var(--f-mono); font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+.tax-card .due { align-self: end; font-size: 13px; color: var(--muted); text-align: right; }
+.feed { display: grid; }
+.feed-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 11px 2px; border-top: 1px dashed var(--rule); }
+.feed-row:first-child { border-top: 0; }
+.doc-ico { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; font: 600 10px var(--f-mono); background: var(--bg); color: var(--muted); border: 1px solid var(--rule); }
+.feed-row .t { font-size: 14px; font-weight: 600; line-height: 1.3; min-width: 0; }
+.feed-row .s { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.feed-row .r { text-align: right; display: grid; gap: 3px; justify-items: end; }
+.feed-row .amt { font-family: var(--f-mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+.pill { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.ai { background: var(--accent-soft); color: var(--accent); }
+.chat { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--rule); font-size: 13.5px; line-height: 1.45; }
+.chat .who { flex: none; width: 26px; height: 26px; border-radius: 7px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font: 600 10px var(--f-mono); }
+
+@media (max-width: 920px) { .hero .wrap { grid-template-columns: 1fr; padding-block: 48px 56px; gap: 36px; } }
+
+/* Sections */
+section.block { padding-block: 88px; }
+section.block + section.block { border-top: 1px solid var(--rule); }
+.sec-head { display: grid; gap: 12px; max-width: 720px; margin-bottom: 40px; }
+.sec-head h2 { font-family: var(--f-display); font-weight: 700; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.12; letter-spacing: -.02em; }
+.sec-head p { color: var(--muted); font-size: 17px; }
+@media (max-width: 600px) { section.block { padding-block: 60px; } }
+
+/* Audience */
+.aud { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.aud-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.aud-card h3 { font-family: var(--f-display); font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+.aud-card > p { color: var(--muted); }
+.aud-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.aud-card li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; font-size: 15px; }
+.aud-card li::before { content: ""; width: 8px; height: 8px; margin-top: 8px; border-radius: 2px; background: var(--accent); }
+.aud-card .metric { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--rule); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.aud-card .metric b { font-family: var(--f-mono); font-size: 24px; font-weight: 600; }
+.aud-card .metric span { color: var(--muted); font-size: 14px; }
+@media (max-width: 760px) { .aud { grid-template-columns: 1fr; } }
+
+/* Steps */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; counter-reset: step; border: 1px solid var(--rule); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.step { padding: 24px 22px 26px; display: grid; gap: 8px; align-content: start; border-left: 1px solid var(--rule); min-width: 0; }
+.step:first-child { border-left: 0; }
+.step::before { counter-increment: step; content: "Шаг " counter(step); font: 600 12px var(--f-mono); color: var(--accent); letter-spacing: .04em; }
+.step h3 { font-size: 17px; font-weight: 700; }
+.step p { font-size: 14.5px; color: var(--muted); }
+.step .time { margin-top: 6px; font: 600 12.5px var(--f-mono); color: var(--ink); }
+@media (max-width: 900px) { .steps { grid-template-columns: 1fr 1fr; } .step:nth-child(3) { border-left: 0; } .step:nth-child(n+3) { border-top: 1px solid var(--rule); } }
+@media (max-width: 520px) { .steps { grid-template-columns: 1fr; } .step { border-left: 0; } .step + .step { border-top: 1px solid var(--rule); } }
+
+/* Features */
+.feat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 16px; overflow: hidden; }
+.f { background: var(--surface); padding: 24px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.f .code { font: 600 11px var(--f-mono); color: var(--muted); letter-spacing: .06em; }
+.f h3 { font-size: 17px; font-weight: 700; }
+.f p { font-size: 14.5px; color: var(--muted); }
+@media (max-width: 900px) { .feat { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .feat { grid-template-columns: 1fr; } }
+
+/* Pricing */
+#pricing { background: var(--surface); }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+.seg { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--bg); border: 1px solid var(--rule); gap: 4px; flex-wrap: wrap; }
+.seg button {
+  border: 0; background: transparent; color: var(--muted); font: 600 14.5px var(--f-body);
+  padding: 9px 16px; border-radius: 9px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.seg .save { font: 600 11px var(--f-mono); color: var(--ok); }
+.plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: stretch; }
+.plan { border: 1px solid var(--rule); border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); min-width: 0; position: relative; }
+.plan.hit { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+.plan .tag { position: absolute; top: -11px; left: 22px; background: var(--accent); color: var(--accent-ink); font: 600 11.5px var(--f-body); padding: 3px 10px; border-radius: 999px; }
+.plan h3 { font-family: var(--f-display); font-size: 20px; font-weight: 700; }
+.plan .who { font-size: 14px; color: var(--muted); min-height: 2.8em; }
+.price { display: grid; gap: 2px; }
+.price .big { font-family: var(--f-mono); font-size: 32px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.price .big small { font-size: 15px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.price .sub { font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.price .sub s { opacity: .7; }
+.plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14.5px; }
+.plan li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; }
+.plan li::before { content: "✓"; color: var(--ok); font-weight: 700; }
+.plan li.off { color: var(--muted); }
+.plan li.off::before { content: "–"; color: var(--muted); }
+.plan .btn { margin-top: auto; width: 100%; }
+.addons { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; color: var(--muted); }
+.addons b { color: var(--ink); margin-right: 4px; }
+.chip { border: 1px solid var(--rule); border-radius: 999px; padding: 5px 12px; background: var(--bg); color: var(--ink); }
+@media (max-width: 1020px) { .plans { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .plans { grid-template-columns: 1fr; } .plan .who { min-height: 0; } }
+
+/* Trust */
+.trust { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; }
+.trust-list { display: grid; gap: 18px; }
+.trust-item { display: grid; grid-template-columns: 44px 1fr; gap: 14px; }
+.trust-item .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 600 12px var(--f-mono); }
+.trust-item h3 { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+.trust-item p { font-size: 14.5px; color: var(--muted); }
+.check-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); display: grid; gap: 12px; min-width: 0; }
+.check-card .row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--rule); }
+.check-card .row:last-of-type { border-bottom: 0; }
+.check-card .row span:first-child { color: var(--muted); }
+.stamp { justify-self: start; margin-top: 6px; border: 2px solid var(--stamp); color: var(--stamp); border-radius: 8px; padding: 6px 12px; font: 700 12px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; transform: rotate(-3deg); }
+@media (max-width: 860px) { .trust { grid-template-columns: 1fr; } }
+
+/* FAQ */
+.faq { display: grid; gap: 10px; max-width: 820px; }
+details { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 0 20px; }
+summary { cursor: pointer; list-style: none; padding: 18px 0; font-weight: 600; font-size: 16.5px; display: flex; justify-content: space-between; gap: 16px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font: 400 22px/1 var(--f-mono); color: var(--muted); transition: transform .2s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { padding-bottom: 18px; color: var(--muted); font-size: 15px; max-width: 65ch; }
+
+/* CTA + footer */
+.final { background: var(--ink); color: var(--bg); }
+.final .wrap { padding-block: 64px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+.final h2 { font-family: var(--f-display); font-size: clamp(24px, 3vw, 34px); font-weight: 700; letter-spacing: -.02em; max-width: 18em; }
+.final p { color: color-mix(in srgb, var(--bg) 70%, var(--ink)); margin-top: 8px; }
+.final .btn-primary { background: var(--bg); color: var(--ink); }
+footer { padding-block: 32px; font-size: 13.5px; color: var(--muted); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+
+/* Checkout dialog */
+.overlay { position: fixed; inset: 0; z-index: 50; background: rgba(8,14,26,.55); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.dialog { width: min(480px, 100%); max-height: 100%; overflow: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 18px; padding: 26px; display: grid; gap: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.35); }
+.dialog h3 { font-family: var(--f-display); font-size: 21px; font-weight: 700; }
+.dlg-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.x { border: 0; background: var(--bg); color: var(--ink); width: 34px; height: 34px; border-radius: 9px; cursor: pointer; font-size: 18px; flex: none; }
+.summary { border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; font-size: 14.5px; }
+.summary .row { display: flex; justify-content: space-between; gap: 12px; }
+.summary .row span:first-child { color: var(--muted); }
+.summary .total { border-top: 1px solid var(--rule); padding-top: 10px; font-weight: 700; }
+.field { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+.field input, .field select { font: 400 15px var(--f-body); padding: 11px 12px; border-radius: 10px; border: 1px solid var(--rule); background: var(--bg); color: var(--ink); width: 100%; }
+.field input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+.err { color: var(--stamp); font-size: 13px; font-weight: 500; }
+.keybox { border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.keybox .k { font: 600 18px var(--f-mono); letter-spacing: .06em; color: var(--accent); word-break: break-all; }
+.dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dl .btn { padding: 12px 8px; flex-direction: column; gap: 2px; font-size: 14px; }
+.dl .btn small { font-weight: 400; font-size: 12px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); }
+@media (max-width: 420px) { .dl { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#top"><span class="logo-mark">С/</span>Сальдо</a>
+    <nav class="links" aria-label="Разделы">
+      <a href="#for-whom">Для кого</a>
+      <a href="#how">Подключение</a>
+      <a href="#features">Возможности</a>
+      <a href="#pricing">Тарифы</a>
+      <a href="#faq">Вопросы</a>
+    </nav>
+    <a class="btn btn-primary" href="#pricing">Попробовать бесплатно</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="eyebrow">ИИ-бухгалтер по подписке</span>
+        <h1>Бухгалтерию ведёт ИИ. <em>Вы занимаетесь бизнесом.</em></h1>
+        <p class="lead">Сальдо разбирает документы, разносит банк, считает налоги и готовит отчётность. Выберите тариф, скачайте приложение и подключитесь за несколько минут.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#pricing">Выбрать тариф</a>
+          <a class="btn btn-ghost" href="#how">Как это работает</a>
+        </div>
+        <div class="hero-facts">
+          <span>Бесплатный тариф навсегда</span>
+          <span>Подписка от 1 месяца</span>
+          <span>Данные хранятся в России</span>
+        </div>
+      </div>
+
+      <div class="app" aria-label="Пример экрана приложения">
+        <div class="app-bar">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <span><b>ООО «Северный ветер»</b> · УСН 6%</span>
+          <span class="live">ИИ работает</span>
+        </div>
+        <div class="app-body">
+          <div class="tax-card">
+            <span class="eyebrow">Налог УСН за 2026 год</span>
+            <span class="sum">41 268 ₽</span>
+            <span class="due">уплатить до<br><b class="num">28.03.2027</b></span>
+          </div>
+          <div class="feed">
+            <div class="feed-row">
+              <span class="doc-ico">УПД</span>
+              <div><div class="t">УПД № 418 · ООО «Техснаб»</div><div class="s">Распознан из ЭДО, проведён</div></div>
+              <div class="r"><span class="amt">48 600,00</span><span class="pill ok">Проведено</span></div>
+            </div>
+            <div class="feed-row">
+              <span class="doc-ico">БНК</span>
+              <div><div class="t">Поступление от ИП Морозова А. В.</div><div class="s">Связано со счётом № 112 от 14.11</div></div>
+              <div class="r"><span class="amt">+ 126 000,00</span><span class="pill ai">Разнесено ИИ</span></div>
+            </div>
+            <div class="feed-row">
+              <span class="doc-ico">ФОТО</span>
+              <div><div class="t">Чек · канцтовары</div><div class="s">Нужно уточнить статью расходов</div></div>
+              <div class="r"><span class="amt">3 412,50</span><span class="pill warn">Вопрос</span></div>
+            </div>
+          </div>
+          <div class="chat">
+            <span class="who">ИИ</span>
+            <span>Покупка канцтоваров на 3 412,50 ₽ — это расходы офиса? Если да, отмечу их как прочие расходы. На налог это не повлияет: у вас УСН «Доходы».</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="for-whom">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Для кого</span>
+        <h2>Одно ядро, два режима работы</h2>
+        <p>Компании получают бухгалтерию под ключ. Бухгалтеры получают ассистента, который снимает рутину по всем клиентам.</p>
+      </div>
+      <div class="aud">
+        <article class="aud-card">
+          <span class="eyebrow">Для компаний и ИП</span>
+          <h3>Бухгалтерия без штатного бухгалтера</h3>
+          <p>Загружайте документы и подключите банк. Сальдо ведёт учёт, напоминает о сроках и сдаёт отчётность.</p>
+          <ul>
+            <li>Фото чека или УПД с телефона сразу попадает в учёт</li>
+            <li>Календарь налогов и готовые платёжки на ЕНС</li>
+            <li>Ответы на вопросы простым языком в чате</li>
+            <li>Специалист проверяет отчёты перед отправкой</li>
+          </ul>
+          <div class="metric"><b>от 2 900 ₽</b><span>в месяц вместо зарплаты бухгалтера</span></div>
+        </article>
+        <article class="aud-card">
+          <span class="eyebrow">Для бухгалтеров и аутсорс-фирм</span>
+          <h3>Ассистент, который ведёт первичку за вас</h3>
+          <p>Вы отвечаете за учёт клиентов, а Сальдо берёт на себя ввод, разноску и сверки.</p>
+          <ul>
+            <li>Пакетная загрузка документов по всем клиентам</li>
+            <li>Одна панель: сроки, долги и ошибки каждого клиента</li>
+            <li>Черновики деклараций и ответов на требования ФНС</li>
+            <li>Обмен данными с 1С</li>
+          </ul>
+          <div class="metric"><b>до 100</b><span>клиентов на одного бухгалтера</span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Подключение</span>
+        <h2>От выбора тарифа до первой проводки</h2>
+        <p>Без звонков менеджеру и долгого внедрения. Мастер в приложении проводит по каждому шагу.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><h3>Выберите тариф</h3><p>Для компании или для бухгалтера, на 1, 2 месяца или квартал.</p><span class="time">1 минута</span></div>
+        <div class="step"><h3>Оформите подписку</h3><p>Картой, через СБП или по счёту для юрлица.</p><span class="time">1 минута</span></div>
+        <div class="step"><h3>Скачайте приложение</h3><p>Для Windows, macOS или откройте веб-версию. Введите ключ из письма.</p><span class="time">2 минуты</span></div>
+        <div class="step"><h3>Подключите банк и ЭДО</h3><p>Загрузите остатки, оформите доверенность для отчётности. ИИ начинает работу.</p><span class="time">от 1 дня</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Возможности</span>
+        <h2>Что делает ИИ-бухгалтер</h2>
+      </div>
+      <div class="feat">
+        <div class="f"><span class="code">01 · ПЕРВИЧКА</span><h3>Распознавание документов</h3><p>Фото, сканы, PDF и УПД из ЭДО. Определяет тип документа, контрагента, суммы и НДС.</p></div>
+        <div class="f"><span class="code">02 · БАНК</span><h3>Разноска выписок</h3><p>Загружает выписки по API банка, связывает платежи со счетами и находит неоплаченные.</p></div>
+        <div class="f"><span class="code">03 · НАЛОГИ</span><h3>Расчёт и календарь</h3><p>УСН, НДС, прибыль, взносы. Напоминает о сроках и готовит платёжки на ЕНС.</p></div>
+        <div class="f"><span class="code">04 · ОТЧЁТЫ</span><h3>Сдача отчётности</h3><p>Готовит декларации, проверяет на ошибки и отправляет в ФНС и СФР через оператора ЭДО.</p></div>
+        <div class="f"><span class="code">05 · ЗАРПЛАТА</span><h3>Зарплата и кадры</h3><p>Начисления, отпускные, больничные, НДФЛ и кадровые документы.</p></div>
+        <div class="f"><span class="code">06 · ЧАТ</span><h3>Ответы на вопросы</h3><p>«Сколько налога платить?», «Почему вырос НДС?», «Что ответить на требование ФНС?»</p></div>
+        <div class="f"><span class="code">07 · КОНТРАГЕНТЫ</span><h3>Сверки и долги</h3><p>Проверка по ИНН, акты сверки и напоминания должникам.</p></div>
+        <div class="f"><span class="code">08 · АНАЛИТИКА</span><h3>Отчёты руководителю</h3><p>Прибыли и убытки, движение денег, прогноз остатка на счёте.</p></div>
+        <div class="f"><span class="code">09 · АРХИВ</span><h3>Электронный архив</h3><p>Все документы с поиском. Храним столько, сколько требует закон.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="pricing">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Тарифы</span>
+        <h2>Платите только за нужные задачи</h2>
+        <p>Начните бесплатно. Перейти на другой тариф можно в любой момент.</p>
+      </div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Для кого тариф">
+          <button type="button" id="aud-biz" data-aud="biz" aria-pressed="true">Для компаний</button>
+          <button type="button" id="aud-acc" data-aud="acc" aria-pressed="false">Для бухгалтеров</button>
+        </div>
+        <div class="seg" role="group" aria-label="Срок подписки">
+          <button type="button" id="per-1" data-per="1" aria-pressed="true">1 месяц</button>
+          <button type="button" id="per-2" data-per="2" aria-pressed="false">2 месяца <span class="save">−5%</span></button>
+          <button type="button" id="per-3" data-per="3" aria-pressed="false">Квартал <span class="save">−10%</span></button>
+        </div>
+      </div>
+      <div class="plans" id="plans"></div>
+      <div class="addons" id="addons"></div>
+    </div>
+  </section>
+
+  <section class="block" id="trust">
+    <div class="wrap trust">
+      <div>
+        <div class="sec-head">
+          <span class="eyebrow">Надёжность</span>
+          <h2>ИИ работает, специалист проверяет</h2>
+          <p>Налоги считает точный алгоритм, а не догадки нейросети. Всё, в чём ИИ не уверен, уходит на проверку человеку.</p>
+        </div>
+        <div class="trust-list">
+          <div class="trust-item"><span class="ic">152</span><div><h3>Данные в России</h3><p>Серверы в российском облаке, работа по 152-ФЗ о персональных данных.</p></div></div>
+          <div class="trust-item"><span class="ic">МЧД</span><div><h3>Отчётность по доверенности</h3><p>Отчёты уходят через оператора ЭДО по машиночитаемой доверенности от вашей компании.</p></div></div>
+          <div class="trust-item"><span class="ic">✓✓</span><div><h3>Двойная проверка</h3><p>Каждый отчёт проверяет специалист перед отправкой в налоговую.</p></div></div>
+        </div>
+      </div>
+      <div class="check-card" aria-label="Пример проверки декларации">
+        <span class="eyebrow">Декларация по УСН · 2026</span>
+        <div class="row"><span>Доходы за год</span><span class="num">4 812 300 ₽</span></div>
+        <div class="row"><span>Налог 6%</span><span class="num">288 738 ₽</span></div>
+        <div class="row"><span>Уменьшение на взносы</span><span class="num">− 53 658 ₽</span></div>
+        <div class="row"><span>Авансы уплачены</span><span class="num">193 812 ₽</span></div>
+        <div class="row"><span><b>К доплате</b></span><span class="num"><b>41 268 ₽</b></span></div>
+        <span class="stamp">Проверено специалистом</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="faq">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="eyebrow">Вопросы</span>
+        <h2>Частые вопросы</h2>
+      </div>
+      <div class="faq">
+        <details><summary>Что входит в бесплатный тариф?</summary><p>Выставление счетов и актов, налоговый календарь, калькуляторы налогов и зарплаты, проверка контрагентов по ИНН и ИИ-чат с ограничением по числу вопросов в день.</p></details>
+        <details><summary>Как я получу программу после оплаты?</summary><p>Сразу после оплаты начнётся скачивание приложения, а на почту придёт ключ активации. Ключ привязан к вашей компании: им можно пользоваться на нескольких устройствах и в веб-версии.</p></details>
+        <details><summary>Что будет, когда подписка закончится?</summary><p>Ваши данные останутся на месте. Программа перейдёт на бесплатный тариф, а документы и история учёта будут доступны для просмотра и выгрузки.</p></details>
+        <details><summary>Кто отвечает за ошибки в отчётах?</summary><p>Налоги рассчитывает алгоритм по правилам Налогового кодекса, а отчёты перед отправкой проверяет специалист. Ответственность сервиса закреплена в договоре.</p></details>
+        <details><summary>Можно перейти с 1С или другой программы?</summary><p>Да. Загрузите выгрузку из 1С или Excel, и Сальдо перенесёт остатки и справочники. Мастер переноса подскажет, какие данные нужны.</p></details>
+        <details><summary>Чем отличаются тарифы для бухгалтеров?</summary><p>Они рассчитаны на работу с несколькими компаниями: общая панель клиентов, пакетная загрузка документов и роли для сотрудников бюро. Цена зависит от числа клиентов.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <div>
+        <h2>Начните с бесплатного тарифа</h2>
+        <p>Платные функции подключаются в один клик, когда понадобятся.</p>
+      </div>
+      <a class="btn btn-primary" href="#pricing">Выбрать тариф</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Сальдо</span>
+    <span>Договор-оферта · Политика обработки персональных данных</span>
+  </div>
+</footer>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <div id="step-order">
+      <div style="display:grid;gap:18px">
+        <div class="dlg-head"><h3 id="dlg-title">Оформление подписки</h3><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+        <div class="summary" id="sum"></div>
+        <form id="order" novalidate style="display:grid;gap:14px">
+          <label class="field" for="email">Почта для ключа активации
+            <input id="email" type="email" placeholder="you@company.ru" autocomplete="email">
+          </label>
+          <label class="field" for="inn">ИНН компании или ИП
+            <input id="inn" inputmode="numeric" placeholder="10 или 12 цифр" maxlength="12">
+          </label>
+          <span class="err" id="err" hidden></span>
+          <button class="btn btn-primary" type="submit" id="go">Перейти к оплате</button>
+        </form>
+      </div>
+    </div>
+    <div id="step-done" hidden>
+      <div style="display:grid;gap:18px">
+        <div class="dlg-head"><h3>Подписка оформлена</h3><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+        <p class="note" id="done-text"></p>
+        <div class="keybox"><span class="eyebrow">Ключ активации</span><span class="k" id="key"></span></div>
+        <div class="dl">
+          <button class="btn btn-ghost" type="button">Windows<small>.exe</small></button>
+          <button class="btn btn-ghost" type="button">macOS<small>.dmg</small></button>
+          <button class="btn btn-ghost" type="button">Веб-версия<small>в браузере</small></button>
+        </div>
+        <p class="note">Откройте приложение, введите ключ, и мастер подключения проведёт вас по шагам: банк, ЭДО, остатки.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PLANS = {
+  biz: [
+    { id: "free", name: "Бесплатно", who: "Чтобы познакомиться с сервисом", price: 0,
+      items: ["Счета и акты, до 10 в месяц", "Налоговый календарь", "Калькуляторы налогов", "ИИ-чат, 5 вопросов в день"],
+      off: ["Ведение учёта", "Сдача отчётности"] },
+    { id: "start", name: "Старт", who: "ИП и ООО на УСН без сотрудников", price: 2900,
+      items: ["Распознавание документов", "Разноска банка", "Расчёт налога УСН", "Декларация и сдача отчётности", "ИИ-чат без ограничений"],
+      off: ["Зарплата и кадры"] },
+    { id: "business", name: "Бизнес", who: "ООО на УСН, до 10 сотрудников", price: 6900, hit: true,
+      items: ["Всё из тарифа «Старт»", "Зарплата и кадры", "Отчёты в СФР", "Сверки с контрагентами", "Проверка специалистом"] },
+    { id: "pro", name: "Про", who: "ООО на ОСНО с НДС", price: 14900,
+      items: ["Всё из тарифа «Бизнес»", "НДС и налог на прибыль", "Склад и основные средства", "Ответы на требования ФНС", "Отчёты руководителю"] },
+  ],
+  acc: [
+    { id: "free", name: "Бесплатно", who: "Чтобы попробовать на своих клиентах", price: 0,
+      items: ["1 клиент", "Распознавание, 20 документов в месяц", "Налоговый календарь", "ИИ-чат, 5 вопросов в день"],
+      off: ["Панель клиентов", "Обмен с 1С"] },
+    { id: "solo", name: "Соло", who: "Частный бухгалтер", price: 3900,
+      items: ["До 10 клиентов", "Распознавание первички", "Разноска банка и сверки", "Черновики отчётов"],
+      off: ["Сотрудники и роли"] },
+    { id: "practice", name: "Практик", who: "Бухгалтер с потоком клиентов", price: 9900, hit: true,
+      items: ["До 30 клиентов", "Всё из тарифа «Соло»", "Панель сроков и ошибок", "Обмен с 1С", "Ответы на требования ФНС"] },
+    { id: "bureau", name: "Бюро", who: "Аутсорс-бухгалтерия", price: 24900,
+      items: ["До 100 клиентов", "Всё из тарифа «Практик»", "Несколько сотрудников", "Роли и права доступа", "Отчёт по загрузке команды"] },
+  ],
+};
+const ADDONS = {
+  biz: ["Маркетплейсы Wildberries и Ozon", "ВЭД", "Восстановление учёта", "Дополнительные сотрудники"],
+  acc: ["Дополнительные клиенты", "Маркетплейсы Wildberries и Ozon", "Восстановление учёта клиента"],
+};
+const DISC = { 1: 0, 2: 0.05, 3: 0.10 };
+const PER_LABEL = { 1: "1 месяц", 2: "2 месяца", 3: "квартал" };
+const state = { aud: "biz", per: 1 };
+try { const s = JSON.parse(localStorage.getItem("saldo-pricing") || "{}"); if (PLANS[s.aud]) state.aud = s.aud; if (DISC[s.per] !== undefined) state.per = +s.per; } catch (e) {}
+
+const rub = n => n.toLocaleString("ru-RU").replace(/ /g, " ") + " ₽";
+const monthly = p => Math.round(p.price * (1 - DISC[state.per]) / 10) * 10;
+
+function render() {
+  document.querySelectorAll("[data-aud]").forEach(b => b.setAttribute("aria-pressed", b.dataset.aud === state.aud));
+  document.querySelectorAll("[data-per]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.per === state.per));
+  const box = document.getElementById("plans");
+  box.innerHTML = PLANS[state.aud].map(p => {
+    const m = monthly(p);
+    const total = m * state.per;
+    const sub = p.price === 0 ? "Без ограничения по времени"
+      : state.per === 1 ? "Оплата помесячно"
+      : `<s class="num">${rub(p.price)}</s> · ${rub(total)} за ${PER_LABEL[state.per]}`;
+    return `<article class="plan${p.hit ? " hit" : ""}">
+      ${p.hit ? '<span class="tag">Чаще выбирают</span>' : ""}
+      <h3>${p.name}</h3>
+      <p class="who">${p.who}</p>
+      <div class="price"><span class="big">${p.price === 0 ? "0 ₽" : rub(m)}${p.price ? " <small>/ мес</small>" : ""}</span><span class="sub">${sub}</span></div>
+      <ul>${p.items.map(i => `<li>${i}</li>`).join("")}${(p.off || []).map(i => `<li class="off">${i}</li>`).join("")}</ul>
+      <button type="button" class="btn ${p.hit ? "btn-primary" : "btn-ghost"}" data-plan="${p.id}">${p.price === 0 ? "Скачать бесплатно" : "Выбрать тариф"}</button>
+    </article>`;
+  }).join("");
+  document.getElementById("addons").innerHTML = "<b>Дополнительно:</b>" + ADDONS[state.aud].map(a => `<span class="chip">${a}</span>`).join("");
+  try { localStorage.setItem("saldo-pricing", JSON.stringify(state)); } catch (e) {}
+}
+
+document.querySelectorAll("[data-aud]").forEach(b => b.addEventListener("click", () => { state.aud = b.dataset.aud; render(); }));
+document.querySelectorAll("[data-per]").forEach(b => b.addEventListener("click", () => { state.per = +b.dataset.per; render(); }));
+
+const overlay = document.getElementById("overlay");
+let current = null, lastFocus = null;
+
+function openDialog(plan) {
+  current = plan;
+  lastFocus = document.activeElement;
+  const free = plan.price === 0;
+  const m = monthly(plan), total = m * state.per;
+  document.getElementById("sum").innerHTML = `
+    <div class="row"><span>Тариф</span><span>${plan.name} · ${state.aud === "biz" ? "для компаний" : "для бухгалтеров"}</span></div>
+    <div class="row"><span>Срок</span><span>${free ? "без ограничения" : PER_LABEL[state.per]}</span></div>
+    ${!free && DISC[state.per] ? `<div class="row"><span>Скидка</span><span class="num">−${DISC[state.per] * 100}%</span></div>` : ""}
+    <div class="row total"><span>К оплате</span><span class="num">${free ? "0 ₽" : rub(total)}</span></div>`;
+  document.getElementById("go").textContent = free ? "Получить ключ" : "Перейти к оплате";
+  document.getElementById("err").hidden = true;
+  document.getElementById("step-order").hidden = false;
+  document.getElementById("step-done").hidden = true;
+  overlay.hidden = false;
+  document.getElementById("email").focus();
+}
+function closeDialog() { overlay.hidden = true; if (lastFocus) lastFocus.focus(); }
+
+document.getElementById("plans").addEventListener("click", e => {
+  const b = e.target.closest("[data-plan]");
+  if (!b) return;
+  openDialog(PLANS[state.aud].find(p => p.id === b.dataset.plan));
+});
+overlay.addEventListener("click", e => { if (e.target === overlay || e.target.closest("[data-close]")) closeDialog(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !overlay.hidden) closeDialog(); });
+
+function makeKey() {
+  const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const part = () => Array.from({ length: 4 }, () => abc[Math.floor(Math.random() * abc.length)]).join("");
+  return `SALDO-${part()}-${part()}-${part()}`;
+}
+
+document.getElementById("order").addEventListener("submit", e => {
+  e.preventDefault();
+  const email = document.getElementById("email").value.trim();
+  const inn = document.getElementById("inn").value.trim();
+  const err = document.getElementById("err");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = "Укажите почту в формате name@company.ru — на неё придёт ключ."; err.hidden = false; return; }
+  if (!/^(\d{10}|\d{12})$/.test(inn)) { err.textContent = "ИНН состоит из 10 цифр для компании или 12 цифр для ИП."; err.hidden = false; return; }
+  err.hidden = true;
+  document.getElementById("key").textContent = makeKey();
+  const until = new Date(); until.setMonth(until.getMonth() + (current.price === 0 ? 0 : state.per));
+  document.getElementById("done-text").textContent = current.price === 0
+    ? `Бесплатный тариф активен без ограничения по времени. Ключ отправлен на ${email}.`
+    : `Тариф «${current.name}» активен до ${until.toLocaleDateString("ru-RU")}. Ключ отправлен на ${email}.`;
+  document.getElementById("step-order").hidden = true;
+  document.getElementById("step-done").hidden = false;
+});
+
+render();
+</script>
+</body>
+</html>
